@@ -137,7 +137,7 @@ public class FileDescr {
 		if(blockIdx<numBlocks) return blockIdx*blockLength;
 		throw new InvalidBlockIndexException();
 	}
-	
+
 	/**
 	 * 
 	 * @return the MD5 hash of the file's content, or the empty string if the file has length 0
