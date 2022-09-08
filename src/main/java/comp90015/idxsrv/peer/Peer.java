@@ -252,171 +252,177 @@ public class Peer implements IPeer {
 	@Override
 	public void downloadFromPeers(String relativePathname, SearchRecord searchRecord) {
 
-		 	String fileMD5 = searchRecord.fileDescr.getFileMd5();
-			int blockNum = searchRecord.fileDescr.getNumBlocks();
-			long numSharers = searchRecord.numSharers;
+		Thread download = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					String fileMD5 = searchRecord.fileDescr.getFileMd5();
+					int blockNum = searchRecord.fileDescr.getNumBlocks();
+					long numSharers = searchRecord.numSharers;
 
-			// the variable is used to stored
-			// position for currently downloaded block
-			int currentBlock = 0;
+					// the variable is used to stored
+					// position for currently downloaded block
+					int currentBlock = 0;
 
-		try {
-			// first we need to connect to idxsrv
-			// to get information about peers who shared the file
-			Socket socket = connectToIdxSrv(searchRecord.idxSrvAddress, searchRecord.idxSrvPort);
-			BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-			BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
+					try {
+						// first we need to connect to idxsrv
+						// to get information about peers who shared the file
+						Socket socket = connectToIdxSrv(searchRecord.idxSrvAddress, searchRecord.idxSrvPort);
+						BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+						BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
 
-			writeMsg(bufferedWriter, new LookupRequest( relativePathname, searchRecord.fileDescr.getFileMd5()));
-			System.out.println("have connected to idxserver: "+ searchRecord.idxSrvAddress + "/" + searchRecord.idxSrvPort + " to look for information for target file: <"+relativePathname+">");
-			tgui.logInfo("have connected to idxserver: "+ searchRecord.idxSrvAddress + "/" + searchRecord.idxSrvPort + " to look for information for target file: <"+relativePathname+">");
+						writeMsg(bufferedWriter, new LookupRequest( relativePathname, searchRecord.fileDescr.getFileMd5()));
+						System.out.println("have connected to idxserver: "+ searchRecord.idxSrvAddress + "/" + searchRecord.idxSrvPort + " to look for information for target file: <"+relativePathname+">");
+						tgui.logInfo("have connected to idxserver: "+ searchRecord.idxSrvAddress + "/" + searchRecord.idxSrvPort + " to look for information for target file: <"+relativePathname+">");
 
-			// receive and store lookup result in local
-			LookupReply lookupReply = (LookupReply) readMsg(bufferedReader);
+						// receive and store lookup result in local
+						LookupReply lookupReply = (LookupReply) readMsg(bufferedReader);
 
-			socket.close();
-			bufferedReader.close();
-			bufferedWriter.close();
+						socket.close();
+						bufferedReader.close();
+						bufferedWriter.close();
 
-			// update gui, hint whether there is peer sharing the file now
-			if(lookupReply.hits.length>0) {
-				System.out.println("obtained peer list, "+"totally find: ("+lookupReply.hits.length+") peer(s) sharing this file");
-				tgui.logInfo("obtained peer list, "+"totally find: ("+lookupReply.hits.length+") peer(s) sharing this file");
-			}
-			else {
-				System.out.println("no peer is sharing this file: <" + relativePathname + ">");
-				tgui.logInfo("no peer is sharing this file: <" + relativePathname + ">");
+						// update gui, hint whether there is peer sharing the file now
+						if(lookupReply.hits.length>0) {
+							System.out.println("obtained peer list, "+"totally find: ("+lookupReply.hits.length+") peer(s) sharing this file");
+							tgui.logInfo("obtained peer list, "+"totally find: ("+lookupReply.hits.length+") peer(s) sharing this file");
+						}
+						else {
+							System.out.println("no peer is sharing this file: <" + relativePathname + ">");
+							tgui.logInfo("no peer is sharing this file: <" + relativePathname + ">");
 
-				return;
-			}
+							return;
+						}
 
-			// start to connect to the peer
-			// sequentially to download file
-			for (long i = 0; i<numSharers;i++) {
-				String ip = lookupReply.hits[(int)i].ip;
+						// start to connect to the peer
+						// sequentially to download file
+						for (long i = 0; i<numSharers;i++) {
+							String ip = lookupReply.hits[(int)i].ip;
 
-				System.out.println("try to connect to peer: "+ i + ", " + ip + "/" + port + " to download file: <" + relativePathname + ">");
-				tgui.logInfo("try to connect to peer: "+ i + ", " + ip + "/" + port + " to download file: <" + relativePathname + ">");
+							System.out.println("try to connect to peer: "+ i + ", " + ip + "/" + port + " to download file: <" + relativePathname + ">");
+							tgui.logInfo("try to connect to peer: "+ i + ", " + ip + "/" + port + " to download file: <" + relativePathname + ">");
 
-				try {
-					// connect to that peer and create IO stream
-					Socket serverSocket = new Socket(ip, port);
-					InputStream inputStream = serverSocket.getInputStream();
-					OutputStream outputStream = serverSocket.getOutputStream();
-					BufferedReader bufferedReaderDownload = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-					BufferedWriter bufferedWriterDownload = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
-
-					// send download request to that peer
-					writeMsg(bufferedWriterDownload, new DownloadRequest(relativePathname, fileMD5));
-					System.out.println("connected to the peer, send download request");
-					tgui.logInfo("connected to the peer,  send download request");
-
-					// receive download request and to see
-					// whether that peer found the file
-					DownloadReply downloadReply = (DownloadReply) readMsg(bufferedReaderDownload);
-
-					// start to download file if that peer found the file
-					if(downloadReply.success) {
-						System.out.println("find file: <" + relativePathname + "> on peer: "+ ip + "/" + port+ ", start to download");
-						tgui.logInfo("find file: <" + relativePathname + "> on peer: "+ ip + "/" + port+ ", start to download");
-
-						// create folder for file downloaded
-						new File("download").mkdirs();
-
-						// create fileMgr to write data in that empty file
-						FileMgr downloadedFile = new FileMgr("download/"+relativePathname, searchRecord.fileDescr);
-
-						Boolean Unfinished = true;
-						while (Unfinished) {
 							try {
-								//request for block and receive block sequentially
-								for (int j = currentBlock; j< blockNum; j++) {
+								// connect to that peer and create IO stream
+								Socket serverSocket = new Socket(ip, port);
+								InputStream inputStream = serverSocket.getInputStream();
+								OutputStream outputStream = serverSocket.getOutputStream();
+								BufferedReader bufferedReaderDownload = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+								BufferedWriter bufferedWriterDownload = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
 
-									// record position of block that has just been downloaded
-									// used in downloaded recovery
-									currentBlock = j;
+								// send download request to that peer
+								writeMsg(bufferedWriterDownload, new DownloadRequest(relativePathname, fileMD5));
+								System.out.println("connected to the peer, send download request");
+								tgui.logInfo("connected to the peer,  send download request");
 
-									writeMsg(bufferedWriterDownload, new BlockRequest(relativePathname, fileMD5, j));
+								// receive download request and to see
+								// whether that peer found the file
+								DownloadReply downloadReply = (DownloadReply) readMsg(bufferedReaderDownload);
 
-									// receive data and convert byte array into byte array data
-									String rawData = ((BlockReply) readMsg(bufferedReaderDownload)).bytes;
-									byte [] data = Base64.getDecoder().decode(rawData);
+								// start to download file if that peer found the file
+								if(downloadReply.success) {
+									System.out.println("find file: <" + relativePathname + "> on peer: "+ ip + "/" + port+ ", start to download");
+									tgui.logInfo("find file: <" + relativePathname + "> on peer: "+ ip + "/" + port+ ", start to download");
 
-									// write byte array data into target file
-									downloadedFile.writeBlock(j, data);
+									// create folder for file downloaded
+									new File("download").mkdirs();
 
-									// record position of block which has just been downloaded
-									// could be used in download recovery
-									currentBlock = j;
+									// create fileMgr to write data in that empty file
+									FileMgr downloadedFile = new FileMgr("download/"+relativePathname, searchRecord.fileDescr);
 
-									System.out.println("finished download block: "+j+", remaining block number: "+ (blockNum - (j+1)));
-									tgui.logInfo("finished download block: "+j+", remaining block number: "+ (blockNum - (j+1)));
+									Boolean Unfinished = true;
+									while (Unfinished) {
+										try {
+											//request for block and receive block sequentially
+											for (int j = currentBlock; j< blockNum; j++) {
 
-									// close while loop if all block has been downloaded
-									if (currentBlock == blockNum - 1) {
-										Unfinished = false;
+												// record position of block that has just been downloaded
+												// used in downloaded recovery
+												currentBlock = j;
+
+												writeMsg(bufferedWriterDownload, new BlockRequest(relativePathname, fileMD5, j));
+
+												// receive data and convert byte array into byte array data
+												String rawData = ((BlockReply) readMsg(bufferedReaderDownload)).bytes;
+												byte [] data = Base64.getDecoder().decode(rawData);
+
+												// write byte array data into target file
+												downloadedFile.writeBlock(j, data);
+
+												// record position of block which has just been downloaded
+												// could be used in download recovery
+												currentBlock = j;
+
+												System.out.println("finished download block: "+j+", remaining block number: "+ (blockNum - (j+1)));
+												tgui.logInfo("finished download block: "+j+", remaining block number: "+ (blockNum - (j+1)));
+
+												// close while loop if all block has been downloaded
+												if (currentBlock == blockNum - 1) {
+													Unfinished = false;
+												}
+											}
+										}
+										catch (Exception e) {
+
+											// show message if there is no peering sharing the file
+											if ( i == lookupReply.hits.length -1 ) {
+												System.out.println("download failed, there is no more peer sharing this file ");
+												tgui.logInfo("download failed, there is no more peer sharing this file ");
+												return;
+											}
+											else {
+
+												// try to connect to the next peer
+												// to keep download from the broken block
+												serverSocket.close();
+												bufferedReaderDownload.close();
+												bufferedWriterDownload.close();
+
+												// connect to the next pair
+												ip = lookupReply.hits[(int)(++i)].ip;
+												serverSocket = new Socket(ip, port);
+
+												System.out.println("connected to the next peer, start to continue downloading");
+												tgui.logInfo("connected to the next peer, start to continue downloading");
+
+												// replace the old IO steams with new ones
+												inputStream = serverSocket.getInputStream();
+												outputStream = serverSocket.getOutputStream();
+												bufferedReaderDownload = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+												bufferedWriterDownload = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
+											}
+										}
 									}
-								}
-							}
-							catch (Exception e) {
+									// download all blocks, receive goodbye message from peer
+									String goodbye = ((Goodbye)readMsg(bufferedReaderDownload)).message;
+									System.out.println(goodbye);
+									tgui.logInfo(goodbye);
 
-								// show message if there is no peering sharing the file
-								if ( i == lookupReply.hits.length -1 ) {
-									System.out.println("download failed, there is no more peer sharing this file ");
-									tgui.logInfo("download failed, there is no more peer sharing this file ");
-									return;
-								}
-								else {
-
-									// try to connect to the next peer
-									// to keep download from the broken block
+									downloadedFile.closeFile();
 									serverSocket.close();
 									bufferedReaderDownload.close();
 									bufferedWriterDownload.close();
-
-									// connect to the next pair
-									ip = lookupReply.hits[(int)(++i)].ip;
-									serverSocket = new Socket(ip, port);
-
-									System.out.println("connected to the next peer, start to continue downloading");
-									tgui.logInfo("connected to the next peer, start to continue downloading");
-
-									// replace the old IO steams with new ones
-									inputStream = serverSocket.getInputStream();
-									outputStream = serverSocket.getOutputStream();
-									bufferedReaderDownload = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-									bufferedWriterDownload = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
 								}
+								else {
+
+									// show message for not finding target file on
+									// one peer and try to find on the next one
+									System.out.println("there is no file: <"+ relativePathname + "> on peer: "+ ip + "/" + port+", try to download from next peer");
+									tgui.logInfo("there is no file: <"+ relativePathname + "> on peer: "+ ip + "/" + port+", try to download from next peer");
+									continue;
+								}
+
+							} catch (IOException  | NoSuchAlgorithmException e) {
 							}
 						}
-							// download all blocks, receive goodbye message from peer
-							String goodbye = ((Goodbye)readMsg(bufferedReaderDownload)).message;
-							System.out.println(goodbye);
-							tgui.logInfo(goodbye);
-
-							downloadedFile.closeFile();
-							serverSocket.close();
-							bufferedReaderDownload.close();
-							bufferedWriterDownload.close();
+						socket.close();
+						bufferedReader.close();
+						bufferedWriter.close();
+					} catch (IOException | JsonSerializationException e) {
+						e.printStackTrace();
 					}
-					else {
-
-						// show message for not finding target file on
-						// one peer and try to find on the next one
-						System.out.println("there is no file: <"+ relativePathname + "> on peer: "+ ip + "/" + port+", try to download from next peer");
-						tgui.logInfo("there is no file: <"+ relativePathname + "> on peer: "+ ip + "/" + port+", try to download from next peer");
-						continue;
-					}
-
-				} catch (IOException  | NoSuchAlgorithmException e) {
 				}
-			}
-			socket.close();
-			bufferedReader.close();
-			bufferedWriter.close();
-		} catch (IOException | JsonSerializationException e) {
-			e.printStackTrace();
-		}
+			});
+		 download.start();
 	}
 
 	private void sendingFile(Socket clientPeerSocket) throws IOException, JsonSerializationException, NoSuchAlgorithmException, BlockUnavailableException {
@@ -550,7 +556,7 @@ public class Peer implements IPeer {
 		bufferedWriter.flush();
 	}
 
-	// used to read Message 
+	// used to read Message
 	private Message readMsg(BufferedReader bufferedReader) throws IOException, JsonSerializationException {
 		String jsonStr = bufferedReader.readLine();
 		if(jsonStr!=null) {
