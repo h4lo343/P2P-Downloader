@@ -351,8 +351,8 @@ public class Peer implements IPeer {
                                             // could be used in download recovery
                                             currentBlock = j;
 
-                                            System.out.println("finished download block: " + j + ", remaining block number: " + (blockNum - (j + 1)));
-                                            tgui.logInfo("finished download block: " + j + ", remaining block number: " + (blockNum - (j + 1)));
+                                            System.out.println("finished downloading block: " + j + ", remaining block number: " + (blockNum - (j + 1)));
+                                            tgui.logInfo("finished downloading block: " + j + ", remaining block number: " + (blockNum - (j + 1)));
 
                                             // close while loop if all block has been downloaded
                                             if (currentBlock == blockNum - 1) {
