@@ -128,6 +128,8 @@ public class Peer implements IPeer {
                     socket.close();
                     bufferedReader.close();
                     bufferedWriter.close();
+                    randomAccessFile.close();
+
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -493,6 +495,7 @@ public class Peer implements IPeer {
                     clientPeerSocket.close();
                     bufferedReaderDownload.close();
                     bufferedWriterDownload.close();
+
                 } catch (IOException | JsonSerializationException | NoSuchAlgorithmException | BlockUnavailableException e) {
                     e.printStackTrace();
                 }
