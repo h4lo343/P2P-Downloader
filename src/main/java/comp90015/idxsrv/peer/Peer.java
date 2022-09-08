@@ -491,6 +491,8 @@ public class Peer implements IPeer {
 
                     sentFile.closeFile();
                     clientPeerSocket.close();
+                    bufferedReaderDownload.close();
+                    bufferedWriterDownload.close();
                 } catch (IOException | JsonSerializationException | NoSuchAlgorithmException | BlockUnavailableException e) {
                     e.printStackTrace();
                 }
