@@ -468,8 +468,8 @@ public class Peer implements IPeer {
 
                         // receive block request
                         BlockRequest blockRequest = (BlockRequest) readMsg(bufferedReaderDownload);
-                        System.out.println("receive request for block:" + blockRequest.blockIdx);
-                        tgui.logInfo("receive request for block:" + blockRequest.blockIdx);
+                        System.out.println("receive request for block: " + blockRequest.blockIdx);
+                        tgui.logInfo("receive request for block: " + blockRequest.blockIdx);
 
                         // send block reply
                         writeMsg(bufferedWriterDownload, new BlockReply(new File(path).getName(), sharedFile.get(path).fileDescr.getFileMd5(), blockRequest.blockIdx, Base64.getEncoder().encodeToString(sentFile.readBlock(blockRequest.blockIdx))));
