@@ -412,9 +412,9 @@ public class Peer implements IPeer {
                         } catch (IOException | NoSuchAlgorithmException e) {
                         }
                     }
-                    socket.close();
                     bufferedReader.close();
                     bufferedWriter.close();
+                    socket.close();
                 } catch (IOException | JsonSerializationException e) {
                     e.printStackTrace();
                 }
@@ -492,9 +492,10 @@ public class Peer implements IPeer {
                     tgui.logInfo("finished sending all data for target file: " + new File(path).getName());
 
                     sentFile.closeFile();
-                    clientPeerSocket.close();
                     bufferedReaderDownload.close();
                     bufferedWriterDownload.close();
+                    clientPeerSocket.close();
+
 
                 } catch (IOException | JsonSerializationException | NoSuchAlgorithmException | BlockUnavailableException e) {
                     e.printStackTrace();
